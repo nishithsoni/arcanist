@@ -736,6 +736,8 @@ EOTEXT
     }
     
     $docs_link = "\033]8;;https://p.uber.com/arh\033\\p.uber.com/arh\033]8;;\033\\";
+    
+    $docs_link = "\033]8;;https://p.uber.com/arh\033\\p.uber.com/arh\033]8;;\033\\";
     $slack_link = "\033]8;;https://uber.enterprise.slack.com/archives/C05H81RFE4F\033\\#github-pr-beta\033]8;;\033\\";
 
     $banner = <<<EOBANNER
@@ -747,6 +749,7 @@ EOTEXT
 *  collaboration and workflow.       *
 *                                    *
 *  Get started at $docs_link     *
+*                                    *
 *  Slack channel: $slack_link    *
 *                                    *
 *  Start using Github PRs today!     *
