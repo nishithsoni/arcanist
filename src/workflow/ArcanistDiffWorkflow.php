@@ -742,8 +742,10 @@ EOTEXT
 *  Switch to GitHub for enhanced     *
 *  collaboration and workflow.       *
 *                                    *
-*  Get started at t.uber.com/github  *
-*  Slack channel: #github-pr-beta    *
+*  Get started at p.uber.com/arh     *
+*  Slack channel: $slack_link    *
+*                                    *
+*  Start using Github PRs today!     *
 *                                    *
 **************************************
 
