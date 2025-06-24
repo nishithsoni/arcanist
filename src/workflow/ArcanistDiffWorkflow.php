@@ -734,6 +734,9 @@ EOTEXT
     if (!$isMember) {
       return;
     }
+
+    $slack_link = "\033]8;;https://uber.enterprise.slack.com/archives/C05H81RFE4F\033\\#github-help\033]8;;\033\\";
+
     $banner = <<<EOBANNER
 **************************************
 *                                    *
