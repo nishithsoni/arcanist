@@ -735,7 +735,7 @@ EOTEXT
       return;
     }
 
-    $slack_link = "\033]8;;https://uber.enterprise.slack.com/archives/C05H81RFE4F\033\\#github-help\033]8;;\033\\";
+    $slack_link = "\033]8;;https://uber.enterprise.slack.com/archives/C05H81RFE4F\033\\#github-pr-beta\033]8;;\033\\";
 
     $banner = <<<EOBANNER
 **************************************
