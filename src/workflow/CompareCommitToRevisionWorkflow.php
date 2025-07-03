@@ -227,7 +227,7 @@ EOTEXT
         array('diffID' => $diff_id)));
 
     // compare the two
-    if ($local_diff !== $reviewed_diff) {
+    if (!$this->checkContentMatchBetweenDiffs($local_diff, $reviewed_diff)) {
       // optionally save the diffs to a files for debugging
       $diff_command = $this->saveDiffs($local_diff, $reviewed_diff);
 
@@ -383,6 +383,50 @@ EOTEXT
     $val = trim($val);
 
     return $val;
+  }
+
+  /**
+   * Check if all lines from the local diff exist in the reviewed diff.
+   * This allows for some flexibility in that the lines in the local diff are a subset of the lines in the reviewed diff.
+   * This is useful because the reviewed diff may contain lines that are not in the local diff, which can happen when there
+   * is no rebase with the default branch.
+   */
+  private function checkContentMatchBetweenDiffs($local_diff, $reviewed_diff) {
+    $local_iterator = $this->lineGenerator($local_diff);
+    $reviewed_iterator = $this->lineGenerator($reviewed_diff);
+
+    // Start both iterators
+    $local_iterator->rewind();
+    $reviewed_iterator->rewind();
+
+    // Continue while there are lines in the local diff to match
+    while ($local_iterator->valid()) {
+      // Check if we've exhausted the reviewed diff while still having local lines
+      if (!$reviewed_iterator->valid()) {
+        return false;
+      }
+
+      // Get current lines from both iterators
+      $local_line = $local_iterator->current();
+      $reviewed_line = $reviewed_iterator->current();
+
+      // If lines match, advance the local iterator (we found this line)
+      if ($local_line === $reviewed_line) {
+        $local_iterator->next();
+      }
+
+      // Always advance the reviewed iterator to check the next line
+      $reviewed_iterator->next();
+    }
+
+    // If we've matched all local lines, return true
+    return true;
+  }
+
+  private function lineGenerator(string $text): Generator {
+    foreach (explode("\n", $text) as $line) {
+      yield $line;
+    }
   }
 
   /**
