@@ -468,9 +468,6 @@ EOTEXT
   public function run() {
     $this->console = PhutilConsole::getConsole();
 
-    // Add a banner to inform users about GitHub invitation
-    $this->displayGitHubInvitationBanner();
-
     // UBER CODE
     $this->uberRefProvider = new UberRefProvider(
       $this->getConfigurationManager()->getConfigFromAnySource('uber.arcanist.use_non_tag_refs', false)
@@ -478,6 +475,9 @@ EOTEXT
     // UBER CODE END
 
     $this->runRepositoryAPISetup();
+
+    // Add a banner to inform users about GitHub invitation (after repo setup)
+    $this->displayGitHubInvitationBanner();
 
     if ($this->getArgument('no-diff')) {
       $this->removeScratchFile('diff-result.json');
@@ -757,6 +757,94 @@ EOTEXT
 EOBANNER;
 
     $this->console->writeOut("<fg:green>%s</fg>\n", $banner);
+    
+    // Only show the prompt for new revisions (not when updating existing ones)
+    // We need to check multiple conditions to determine the actual intent
+    if ($this->shouldPromptForArh()) {
+      // Prompt user to consider using arh CLI tool instead
+      $prompt = pht(
+        'Would you like to create a GitHub PR instead?'
+      );
+      
+      if (phutil_console_confirm($prompt, $default_no = false)) {
+        $this->console->writeOut(
+          "%s\n%s\n%s\n%s\n\n%s\n",
+          pht('Great! You can create a GitHub PR using the arh CLI tool:'),
+          pht('  1. Ensure you are authenticated: %s', phutil_console_format('**arh auth**')),
+          pht('  2. Make your changes and commit them.'),
+          pht('  3. Publish your PR: %s', phutil_console_format('**arh publish**')),
+          pht('Documentation: %s', phutil_console_format('__%s__', 'https://p.uber.com/arh'))
+        );
+        throw new ArcanistUserAbortException();
+      }
+      
+      $this->console->writeOut(
+        "%s\n\n", 
+        pht('Continuing with Phabricator diff creation...')
+      );
+    }
+  }
+
+  /**
+   * Determine if we should prompt the user to use arh CLI tool.
+   * Only prompt for new revision creation, not updates or diff-only operations.
+   */
+  private function shouldPromptForArh() {
+    // Collect gating flags/conditions up front for clarity
+    $isCreate          = (bool)$this->getArgument('create');
+    $isUpdate          = (bool)$this->getArgument('update');
+    $isNoInteractive   = (bool)$this->getArgument('nointeractive');
+    $isTTY             = $this->isTTY();
+    $isJson            = (bool)$this->getArgument('json');
+    $isNoDiff          = (bool)$this->getArgument('no-diff');
+    $onlyCreateDiff    = (bool)$this->shouldOnlyCreateDiff();
+    $useCommitMessage  = (bool)$this->getArgument('use-commit-message');
+
+    // Single guard: skip prompting when any disqualifying condition is true
+    if (
+      $isNoInteractive ||
+      !$isTTY ||
+      $isJson ||
+      $isNoDiff ||
+      $isCreate ||
+      $isUpdate ||
+      $onlyCreateDiff ||
+      $useCommitMessage
+    ) {
+      return false;
+    }
+
+    // At this point, we need to check if Arcanist will auto-detect this
+    // as a new revision vs updating an existing one. We need to replicate
+    // the logic from buildCommitMessage() but without side effects.
+
+    try {
+      $repository_api = $this->getRepositoryAPI();
+      $revisions = $repository_api->loadWorkingCopyDifferentialRevisions(
+        $this->getConduit(),
+        array(
+          'authors' => array($this->getUserPHID()),
+          'status'  => 'status-open',
+        ));
+
+      // If no existing revisions found, this will be a new revision - prompt
+      if (!$revisions) {
+        return true;
+      }
+
+      // If exactly one revision found, this will be an update - don't prompt
+      if (count($revisions) == 1) {
+        return false;
+      }
+
+      // If multiple revisions, user will be asked to choose - this is ambiguous,
+      // so don't prompt for arh to avoid confusion
+      return false;
+
+    } catch (Exception $ex) {
+      // If we can't determine safely, don't prompt
+      return false;
+    }
   }
 
   private function runRepositoryAPISetup() {
