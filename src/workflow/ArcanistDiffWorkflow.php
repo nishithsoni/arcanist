@@ -479,6 +479,9 @@ EOTEXT
     // Add a banner to inform users about GitHub invitation (after repo setup)
     $this->displayGitHubInvitationBanner();
 
+    // Add a banner to inform users about GitHub invitation (after repo setup)
+    $this->displayGitHubInvitationBanner();
+
     if ($this->getArgument('no-diff')) {
       $this->removeScratchFile('diff-result.json');
       $data = $this->runLintUnit();
@@ -756,7 +759,7 @@ EOTEXT
 
 EOBANNER;
 
-    $this->console->writeOut("<fg:green>%s</fg>\n", $banner);
+    $this->console->writeOut("<fg:green>%s</fg>", $banner);
     
     // Only show the prompt for new revisions (not when updating existing ones)
     // We need to check multiple conditions to determine the actual intent
