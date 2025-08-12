@@ -479,9 +479,6 @@ EOTEXT
     // Add a banner to inform users about GitHub invitation (after repo setup)
     $this->displayGitHubInvitationBanner();
 
-    // Add a banner to inform users about GitHub invitation (after repo setup)
-    $this->displayGitHubInvitationBanner();
-
     if ($this->getArgument('no-diff')) {
       $this->removeScratchFile('diff-result.json');
       $data = $this->runLintUnit();
@@ -830,19 +827,8 @@ EOBANNER;
           'status'  => 'status-open',
         ));
 
-      // If no existing revisions found, this will be a new revision - prompt
-      if (!$revisions) {
-        return true;
-      }
-
-      // If exactly one revision found, this will be an update - don't prompt
-      if (count($revisions) == 1) {
-        return false;
-      }
-
-      // If multiple revisions, user will be asked to choose - this is ambiguous,
-      // so don't prompt for arh to avoid confusion
-      return false;
+      // Prompt only if no existing open revisions
+      return empty($revisions);
 
     } catch (Exception $ex) {
       // If we can't determine safely, don't prompt
