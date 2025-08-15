@@ -726,7 +726,8 @@ EOTEXT
 
   /**
    * Display a banner to inform users about GitHub.
-   * Only display the banner if the user is in the github-beta-users LDAP group.
+   * Display the banner for all users in the github-beta-users LDAP group,
+   * but only show the interactive prompt for repositories in the allowed list.
    */
   private function displayGitHubInvitationBanner() {
     $gbu = new UberGitHubBetaUsers();
@@ -760,7 +761,7 @@ EOBANNER;
     
     // Only show the prompt for new revisions (not when updating existing ones)
     // We need to check multiple conditions to determine the actual intent
-    if ($this->shouldPromptForArh()) {
+    if ($this->shouldPromptForArh() && $this->isRepositoryAllowedForGitHubPrompt()) {
       // Prompt user to consider using arh CLI tool instead
       $prompt = pht(
         'Would you like to create a GitHub PR instead?'
@@ -783,6 +784,44 @@ EOBANNER;
         pht('Continuing with Phabricator diff creation...')
       );
     }
+  }
+
+  /**
+   * Check if the current repository is allowed for the GitHub PR interactive prompt.
+   * Note: This only restricts the prompt, not the informational banner.
+   * @return bool True if the repository is in the allowed list, false otherwise.
+   */
+  private function isRepositoryAllowedForGitHubPrompt() {
+    $allowed_repos = array(
+      'go-code',
+      'web-code',
+      'lm/fievel',
+      'mobile/android',
+      'mobile/ios',
+      'uber-one',
+      'data/ml-code',
+      'data/authored-schemas',
+      'finance/banker-rules',
+      'devexp/devpod-monorepo',
+      'rt/edge-gateway',
+      'devexp/failover-test-repo',
+      'data/hoodie_oss',
+      'sre/rdp-config',
+      'rt/realtime-api',
+      'infra/statsdex',
+      'usecurity/uspecs',
+      'mobile/dummy_repo_1',
+      'mobile/dummy_repo_3',
+      'infra/config-test',
+      'testing/submitqueue-e2e',
+    );
+
+    $repo_name = $this->getRepositoryName();
+    if ($repo_name === null) {
+      return false;
+    }
+
+    return in_array($repo_name, $allowed_repos);
   }
 
   /**
