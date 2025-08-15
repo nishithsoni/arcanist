@@ -726,13 +726,18 @@ EOTEXT
 
   /**
    * Display a banner to inform users about GitHub.
-   * Display the banner for all users in the github-beta-users LDAP group,
-   * but only show the interactive prompt for repositories in the allowed list.
+   * Only display the banner and prompt if the user is in the github-beta-users LDAP group
+   * and the repository is in the allowed list.
    */
   private function displayGitHubInvitationBanner() {
     $gbu = new UberGitHubBetaUsers();
     $isMember = $gbu->isCurrentUserInGitHubBetaUsers();
     if (!$isMember) {
+      return;
+    }
+
+    // Check if current repository is in the allowed list for GitHub PR prompts
+    if (!$this->isRepositoryAllowedForGitHubPrompt()) {
       return;
     }
     
@@ -761,7 +766,7 @@ EOBANNER;
     
     // Only show the prompt for new revisions (not when updating existing ones)
     // We need to check multiple conditions to determine the actual intent
-    if ($this->shouldPromptForArh() && $this->isRepositoryAllowedForGitHubPrompt()) {
+    if ($this->shouldPromptForArh()) {
       // Prompt user to consider using arh CLI tool instead
       $prompt = pht(
         'Would you like to create a GitHub PR instead?'
@@ -787,8 +792,7 @@ EOBANNER;
   }
 
   /**
-   * Check if the current repository is allowed for the GitHub PR interactive prompt.
-   * Note: This only restricts the prompt, not the informational banner.
+   * Check if the current repository is allowed for GitHub banner and prompt.
    * @return bool True if the repository is in the allowed list, false otherwise.
    */
   private function isRepositoryAllowedForGitHubPrompt() {
