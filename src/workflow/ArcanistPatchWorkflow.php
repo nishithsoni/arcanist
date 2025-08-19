@@ -1313,23 +1313,27 @@ EOTEXT
   }
 
   private function mergeBranchFromStagingArea($id, $bundle) {
-    list($success,
-      $message, $staging, $staging_uri) = $this->validateStagingSetup();
+    list($success, $message, $staging, $staging_uri) = $this->validateStagingSetup();
     if (!$success) {
       throw new ArcanistUsageException($message);
     }
+
     $prefix = idx($staging, 'prefix', 'phabricator');
     $diff_tag = $this->uberRefProvider->getDiffRefName($prefix, $id);
     echo pht('Fetching diff ref "%s" from staging remote', $diff_tag)."\n";
     // https://stackoverflow.com/questions/41813643/why-is-git-fetch-not-fetching-any-tags
-    $err = phutil_passthru(
-      'git fetch --tag -n %s %s:%s',
-      $staging_uri,
-      $diff_tag, $diff_tag);
+    // Fetch HEAD ref of diff
+    $err = phutil_passthru('git fetch --tag -n %s %s:%s', $staging_uri, $diff_tag, $diff_tag);
     if ($err) {
       $this->writeWarn(pht('STAGING TAG PULL FAILED'),
         pht('Unable to pull tag from the staging area but proceeding !!'));
     }
+
+    // Validate entry criteria before proceeding with merge.
+    // This will throw an ArcanistUsageException if the criteria are not met.
+    $this->validateStagingMergeCriteria($id, $staging, $staging_uri);
+
+
     $err = phutil_passthru('git merge --no-ff %s --no-edit', $diff_tag);
     if ($err) {
       $this->writeWarn(pht('MERGE TAG FAILED'),
@@ -1362,6 +1366,73 @@ EOTEXT
     }
 
     return self::SUCCESS;
+  }
+
+  /**
+   * Validate entry criteria for staging merge. One of the following criteria must be true to proceed:
+   * 1) base ref exists on branch being merged into (i.e. all changes that will be merged appear on the diff)
+   * 2) no commit in the base ref's history exists in the working copy (i.e. there is no merge-base between base ref and HEAD)
+   * Throws ArcanistUsageException if neither criterion is met.
+   */
+  private function validateStagingMergeCriteria($id, $staging, $staging_uri) {
+    $prefix = idx($staging, 'prefix', 'phabricator');
+    $base_ref = $this->uberRefProvider->getBaseRefName($prefix, $id);
+    $repository_api = $this->getRepositoryAPI();
+
+    // Fetch the base ref of diff
+    echo pht('Fetching base ref "%s" from staging remote', $base_ref)."\n";
+    $err = $repository_api->execPassthru('fetch --no-tags %s %s', $staging_uri, $base_ref);
+    if ($err) {
+      throw new ArcanistUsageException(pht('Failed to fetch base ref "%s" from staging area', $base_ref));
+    }
+
+    // Check if base ref exists on the current branch of the working copy.
+    // null = error running command, 0 = ancestor, 1 = not ancestor
+    list($exit_code) = $repository_api->execManualLocal("merge-base --is-ancestor %s HEAD", $base_ref);
+    if ($exit_code === null) {
+      throw new ArcanistUsageException(pht('Failed to check if base ref "%s" is ancestor of HEAD', $base_ref));
+    } else if ($exit_code == 0) {
+      // Base ref is ancestor of HEAD (i.e. all changes that will be merged appear on the diff) - allow merge
+      return;
+    }
+
+    // Check if ANY commit in base_ref's history is ancestor of HEAD.
+    // i.e. not just whether the base_ref itself is on the current branch, but also whether any of its ancestors are.
+    $history_has_common_commit = $this->hasCommonAncestor($base_ref, $repository_api);
+    if (!$history_has_common_commit) {
+      // No common commits in history (could be microrepo -> monorepo migration) - allow merge
+      return;
+    }
+
+    // Get the SHA for $base_ref using git rev-parse
+    list($err, $sha) = $repository_api->execManualLocal('rev-parse %s', $base_ref);
+    if ($err || empty($sha)) {
+      throw new ArcanistUsageException(pht('Failed to resolve SHA for base ref "%s"', $base_ref));
+    }
+
+    // DENY: Base ref is not ancestor of HEAD but some commits from its history are
+    $error_message = pht(
+      "Cannot merge staging tag - one of the following criteria must be true to proceed:\n" .
+      "1) base ref \"%s\" (SHA: %s) exists on branch being merged into\n" .
+      "2) no commit in the base ref's history exists in the working copy\n" .
+      "For more information, see https://t.uber.com/arc-preserve-git-history-errors",
+      $base_ref,
+      trim($sha));
+    throw new ArcanistUsageException($error_message);
+  }
+
+  /**
+   * Check if any commit in a given ref's history exists on the current branch.
+   * Returns true if a merge-base is found, false otherwise.
+   */
+  private function hasCommonAncestor($ref, $repository_api) {
+    list($err, $merge_base) = $repository_api->execManualLocal("merge-base %s HEAD", $ref);
+    if ($err === 0 && !empty(trim($merge_base))) {
+      echo "Found common ancestor: " . trim($merge_base) . "\n";
+      return true;
+    }
+
+    return false;
   }
   // UBER CODE END
 }
