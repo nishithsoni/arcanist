@@ -36,6 +36,15 @@ final class UberSubmitQueueClient extends Phobject {
         return $this->callMethodSynchronous("POST", "/merge_requests", $params);
     }
 
+    // Sends a request to priority merge in SubmitQueue, which will skip the checks and go to the front of the queue.
+    public function submitPriorityMergeRequest($revisionId) {
+      $params = array(
+        'revisionId' => $revisionId,
+        'conduitToken' => $this->conduitToken,
+      );
+      return $this->callMethodSynchronous("POST", "/v2/priority_merge_request", $params);
+  }
+
   public function submitMergeStackRequest($remoteUrl, $stack, $shouldShadow, $targetOnto) {
     $params = array(
       'remote' => $remoteUrl,
@@ -59,6 +68,15 @@ final class UberSubmitQueueClient extends Phobject {
         // protocol edge cases that HTTPFuture does not support.
         $core_future = new HTTPSFuture($req);
         $core_future->addHeader('Host', $this->getHost());
+
+        // Add uSSO token to the request
+        $usso = new UberUSSO();
+        $hostname = parse_url($this->uri, PHP_URL_HOST);
+        $token = $usso->maybeUseUSSOToken($hostname);
+        if (!$token) {
+          $token = $usso->getUSSOToken($hostname);
+        }
+        $core_future->addHeader('Authorization', "Bearer {$token}");
 
         $core_future->setMethod($method);
         $core_future->setTimeout($this->timeout);
