@@ -496,7 +496,7 @@ phutil_register_library_map(array(
     'UberFZF' => 'uber/UberFZF.php',
     'UberFilesizeTestEngine' => 'unit/engine/UberFilesizeTestEngine.php',
     'UberFilesizeTestEngineTestCase' => 'unit/engine/__tests__/UberFilesizeTestEngineTestCase.php',
-    'UberGitHubBetaUsersPrompt' => 'uber/UberGitHubBetaUsers.php',
+    'UberGitHubBetaUsersPrompt' => 'uber/UberGitHubBetaUsersPrompt.php',
     'UberGitSecretsLinter' => 'lint/linter/UberGitSecretsLinter.php',
     'UberGradleTestEngine' => 'unit/engine/UberGradleTestEngine.php',
     'UberJiraIssueMessageParser' => 'uber/UberJiraIssueMessageParser.php',
