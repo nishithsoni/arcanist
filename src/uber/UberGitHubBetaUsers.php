@@ -1,15 +1,15 @@
 <?php
 
-// UberGitHubBetaUsers
-final class UberGitHubBetaUsers extends Phobject {
+// UberGitHubBetaUsersPrompt
+final class UberGitHubBetaUsersPrompt extends Phobject {
   private $url = self::URL;
-  const URL = 'https://gollo.uberinternal.com/r?request=get-group-members&group=github-beta-users';
+  const URL = 'https://gollo.uberinternal.com/r?request=get-group-members&group=github-beta-users-prompt';
 
   const TIMEOUT_SECONDS = 10;
 
   public function __construct() {}
 
-  public function getGitHubBetaUsers(): array {
+  public function getGitHubBetaUsersPromptGroup(): array {
     try {
       $usso = new UberUSSO();
       $hostname = parse_url(self::URL, PHP_URL_HOST);
@@ -38,8 +38,8 @@ final class UberGitHubBetaUsers extends Phobject {
   }
 
 
-  public function isCurrentUserInGitHubBetaUsers() {
-    $githubBetaUsers = $this->getGitHubBetaUsers();
+  public function isCurrentUserInGitHubBetaUsersPromptGroup() {
+    $githubBetaUsers = $this->getGitHubBetaUsersPromptGroup();
     $user = getenv('USER');
     if ($user === false) {
       return false;
