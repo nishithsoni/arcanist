@@ -730,8 +730,8 @@ EOTEXT
    * and the repository is in the allowed list.
    */
   private function displayGitHubInvitationBanner() {
-    $gbu = new UberGitHubBetaUsers();
-    $isMember = $gbu->isCurrentUserInGitHubBetaUsers();
+    $gbu = new UberGitHubBetaUsersPrompt();
+    $isMember = $gbu->isCurrentUserInGitHubBetaUsersPromptGroup();
     if (!$isMember) {
       return;
     }
