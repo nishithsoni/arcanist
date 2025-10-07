@@ -735,11 +735,6 @@ EOTEXT
     if (!$isMember) {
       return;
     }
-
-    // Check if current repository is in the allowed list for GitHub PR prompts
-    if (!$this->isRepositoryAllowedForGitHubPrompt()) {
-      return;
-    }
     
     $docs_link = "\033]8;;https://p.uber.com/arh\033\\p.uber.com/arh\033]8;;\033\\";
     $slack_link = "\033]8;;https://uber.enterprise.slack.com/archives/C05H81RFE4F\033\\#github-pr-beta\033]8;;\033\\";
@@ -789,43 +784,6 @@ EOBANNER;
         pht('Continuing with Phabricator diff creation...')
       );
     }
-  }
-
-  /**
-   * Check if the current repository is allowed for GitHub banner and prompt.
-   * @return bool True if the repository is in the allowed list, false otherwise.
-   */
-  private function isRepositoryAllowedForGitHubPrompt() {
-    $allowed_repos = array(
-      'go-code',
-      'web-code',
-      'lm/fievel',
-      'mobile/android',
-      'mobile/ios',
-      'uber-one',
-      'data/ml-code',
-      'data/authored-schemas',
-      'finance/banker-rules',
-      'devexp/devpod-monorepo',
-      'rt/edge-gateway',
-      'devexp/failover-test-repo',
-      'data/hoodie_oss',
-      'sre/rdp-config',
-      'rt/realtime-api',
-      'infra/statsdex',
-      'usecurity/uspecs',
-      'mobile/dummy_repo_1',
-      'mobile/dummy_repo_3',
-      'infra/config-test',
-      'testing/submitqueue-e2e',
-    );
-
-    $repo_name = $this->getRepositoryName();
-    if ($repo_name === null) {
-      return false;
-    }
-
-    return in_array($repo_name, $allowed_repos);
   }
 
   /**
