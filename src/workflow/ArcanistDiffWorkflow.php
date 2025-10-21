@@ -798,23 +798,6 @@ EOBANNER;
   private function isRepositoryDisabledForGitHubPrompt() {
     $denied_repos = array(
       // These are repos that are disabled because of vref checks, more info: https://t.uber.com/blocked-vref-repos
-      'config/client-go',
-      'config/flip-go',
-      'config/flipr-core',
-      'config/ucs-validation',
-      'connect-cookies',
-      'data/uworc-workflows',
-      'data/uworc-workflows-staging',
-      'engsec/breeze',
-      'engsec/galileo-java',
-      'engsec/sri-phantom-apps',
-      'engsec/sri-phantom-playbooks',
-      'engsec/sri-phantom-utils',
-      'engsec/wonka-java',
-      'inuit.css',
-      'marketplace/fulfillment',
-      'mirroring_test',
-      'web-tools',
       'infra/config',
       'infra/config-staging',
       'engsec/infra-as-code',
