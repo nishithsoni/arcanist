@@ -784,10 +784,58 @@ EOBANNER;
         throw new ArcanistUserAbortException();
       }
       
-      $this->console->writeOut(
-        "%s\n\n", 
-        pht('Continuing with Phabricator diff creation...')
+      // Additional prompt for users who chose to continue with Phabricator
+      $reason_prompt = pht(
+        'Please explain why you are choosing to use a Phabricator diff instead of a GitHub PR:'
       );
+      
+      $reason = phutil_console_prompt($reason_prompt);
+      if (empty(trim($reason))) {
+        $this->console->writeErr(
+          "%s\n",
+          pht('A reason is required to continue with Phabricator diff creation.')
+        );
+        throw new ArcanistUserAbortException();
+      }
+      
+      // Track the reason using aw CLI for analytics
+      $this->trackGitHubBetaPromptReason(trim($reason));
+      
+      $this->console->writeOut(
+        "%s\n%s: %s\n\n", 
+        pht('Continuing with Phabricator diff creation...'),
+        pht('Reason provided'),
+        trim($reason)
+      );
+    }
+  }
+
+
+  /**
+   * Track the user's reason for choosing Phabricator over GitHub using aw CLI
+   * for local developer analytics.
+   */
+  private function trackGitHubBetaPromptReason($reason) {
+    try {
+      $repo_name = $this->getRepositoryName();
+      // Handle case where repository name is not available
+      if ($repo_name === null) {
+        $repo_name = 'unknown';
+      }
+      
+      // Execute aw CLI command with minimal required fields
+      // aw auto-populates system fields like hostname, user, timestamps, etc.
+      exec_manual(
+        'aw -t %s %s -t %s %s -t %s %s -t %s %s -t %s %s',
+        'tool.name', 'arc-prompt',
+        'tool.action', 'github-beta-prompt-reason',
+        'tool.arguments', 'diff',
+        'tool.repo_name', $repo_name,
+        'tool.value_map.user_reason', $reason
+      );
+      
+    } catch (Exception $ex) {
+      // Silently fail - don't disrupt the user workflow if analytics fails
     }
   }
 
@@ -827,13 +875,12 @@ EOBANNER;
 
   /**
    * Determine if we should prompt the user to use arh CLI tool.
-   * Only prompt for new revision creation, not updates or diff-only operations.
+   * Prompt for new revision creation including --create, --nointeractive, etc.
+   * but not updates or truly non-interactive scenarios.
    */
   private function shouldPromptForArh() {
     // Collect gating flags/conditions up front for clarity
-    $isCreate          = (bool)$this->getArgument('create');
     $isUpdate          = (bool)$this->getArgument('update');
-    $isNoInteractive   = (bool)$this->getArgument('nointeractive');
     $isTTY             = $this->isTTY();
     $isJson            = (bool)$this->getArgument('json');
     $isNoDiff          = (bool)$this->getArgument('no-diff');
@@ -842,11 +889,9 @@ EOBANNER;
 
     // Single guard: skip prompting when any disqualifying condition is true
     if (
-      $isNoInteractive ||
       !$isTTY ||
       $isJson ||
       $isNoDiff ||
-      $isCreate ||
       $isUpdate ||
       $onlyCreateDiff ||
       $useCommitMessage
