@@ -726,8 +726,8 @@ EOTEXT
 
   /**
    * Display a banner to inform users about GitHub.
-   * Only display the banner and prompt if the user is in the github-beta-users LDAP group
-   * and the repository is in the allowed list.
+   * Only display the banner and prompt if the user is in the github-beta-users-prompt LDAP group
+   * and the repository is not in the deny list.
    */
   private function displayGitHubInvitationBanner() {
     $gbu = new UberGitHubBetaUsersPrompt();
@@ -736,8 +736,8 @@ EOTEXT
       return;
     }
 
-    // Check if current repository is in the allowed list for GitHub PR prompts
-    if (!$this->isRepositoryAllowedForGitHubPrompt()) {
+    // Check if current repository is in the deny list for GitHub PR prompts
+    if ($this->isRepositoryDisabledForGitHubPrompt()) {
       return;
     }
     
@@ -792,32 +792,19 @@ EOBANNER;
   }
 
   /**
-   * Check if the current repository is allowed for GitHub banner and prompt.
-   * @return bool True if the repository is in the allowed list, false otherwise.
+   * Check if the current repository is disabled for GitHub banner and prompt.
+   * @return bool True if the repository is in the deny list, false otherwise.
    */
-  private function isRepositoryAllowedForGitHubPrompt() {
-    $allowed_repos = array(
-      'go-code',
-      'web-code',
-      'lm/fievel',
-      'mobile/android',
-      'mobile/ios',
-      'uber-one',
-      'data/ml-code',
-      'data/authored-schemas',
-      'finance/banker-rules',
-      'devexp/devpod-monorepo',
-      'rt/edge-gateway',
-      'devexp/failover-test-repo',
-      'data/hoodie_oss',
-      'sre/rdp-config',
-      'rt/realtime-api',
-      'infra/statsdex',
-      'usecurity/uspecs',
-      'mobile/dummy_repo_1',
-      'mobile/dummy_repo_3',
-      'infra/config-test',
-      'testing/submitqueue-e2e',
+  private function isRepositoryDisabledForGitHubPrompt() {
+    $denied_repos = array(
+      // These are repos that are disabled because of vref checks, more info: https://t.uber.com/blocked-vref-repos
+      'infra/config',
+      'infra/config-staging',
+      'engsec/infra-as-code',
+      'rt/idl-registry',
+
+      // These are other unsupported repos
+      "mobile/ios", // iOS visual snapshots not supported yet
     );
 
     $repo_name = $this->getRepositoryName();
@@ -825,7 +812,17 @@ EOBANNER;
       return false;
     }
 
-    return in_array($repo_name, $allowed_repos);
+    // Check if repo is in the explicit deny list
+    if (in_array($repo_name, $denied_repos)) {
+      return true;
+    }
+
+    // Check if repo starts with "objectconfig/"
+    if (strpos($repo_name, 'objectconfig/') === 0) {
+      return true;
+    }
+
+    return false;
   }
 
   /**
