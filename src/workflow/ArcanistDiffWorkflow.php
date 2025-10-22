@@ -460,6 +460,11 @@ EOTEXT
           'Automatically convert invalid UTF-8 sequences '.
           'to binary.'),
       ),
+      'force' => array(
+        'help' => pht(
+          'Force creation of Phabricator diff instead of GitHub PR. '.
+          'Will prompt for exemption reason.'),
+      ),
     );
 
     return $arguments;
@@ -476,8 +481,8 @@ EOTEXT
 
     $this->runRepositoryAPISetup();
 
-    // Add a banner to inform users about GitHub invitation (after repo setup)
-    $this->displayGitHubInvitationBanner();
+    // Check if we should block diff creation and force GitHub PR usage
+    $this->checkForceGitHubPRUsage();
 
     if ($this->getArgument('no-diff')) {
       $this->removeScratchFile('diff-result.json');
@@ -725,29 +730,142 @@ EOTEXT
   }
 
   /**
-   * Display a banner to inform users about GitHub.
-   * Only display the banner and prompt if the user is in the github-beta-users-prompt LDAP group
-   * and the repository is not in the deny list.
+   * Check if we should force GitHub PR usage instead of allowing Phabricator diffs.
+   * Only affects users in the GitHub beta prompt LDAP group creating NEW diffs.
+   * Does NOT block updates to existing diffs (--update or auto-detected).
+   * Aggressively blocks new diff creation unless --force is used with exemption reason.
    */
-  private function displayGitHubInvitationBanner() {
+  private function checkForceGitHubPRUsage() {
+    // Only enforce for GitHub beta group users
     $gbu = new UberGitHubBetaUsersPrompt();
-    $isMember = $gbu->isCurrentUserInGitHubBetaUsersPromptGroup();
-    if (!$isMember) {
+    if (!$gbu->isCurrentUserInGitHubBetaUsersPromptGroup()) {
       return;
     }
 
-    // Check if current repository is in the deny list for GitHub PR prompts
+    // Skip the check if --force flag is provided
+    if ($this->getArgument('force')) {
+      $this->promptForForceExemptionReason();
+      return;
+    }
+
+    // Skip for updates - don't force GitHub for existing diffs
+    if ($this->getArgument('update')) {
+      return;
+    }
+
+    // Check if this will be updating an existing revision (auto-detected)
+    try {
+      $repository_api = $this->getRepositoryAPI();
+      $revisions = $repository_api->loadWorkingCopyDifferentialRevisions(
+        $this->getConduit(),
+        array(
+          'authors' => array($this->getUserPHID()),
+          'status'  => 'status-open',
+        ));
+      
+      // Skip if there are existing open revisions (will be an update)
+      if (!empty($revisions)) {
+        return;
+      }
+    } catch (Exception $ex) {
+      // If we can't determine safely, don't block (safer to allow)
+      return;
+    }
+
+    // Only skip for non-TTY scenarios (scripts, pipes, background processes)
+    if (!$this->isTTY()) {
+      return;
+    }
+
+    // Skip if repository is disabled for GitHub prompts
+    if ($this->isRepositoryDisabledForGitHubPrompt()) {
+      return;
+    }
+
+    // Block diff creation and show GitHub PR instructions
+    $this->console->writeOut(
+      "%s\n%s\n%s\n\n%s\n%s\n%s\n%s\n\n%s\n\n%s\n",
+      pht('⚠️  Phabricator diffs are being deprecated in favor of GitHub PRs.'),
+      pht('To create a GitHub PR instead:'),
+      '',
+      pht('  1. Ensure you are authenticated: %s', phutil_console_format('**arh auth**')),
+      pht('  2. Make your changes and commit them.'),
+      pht('  3. Publish your PR: %s', phutil_console_format('**arh publish**')),
+      pht('  Documentation: %s', phutil_console_format('__%s__', 'https://p.uber.com/arh')),
+      pht('If you must use Phabricator, run: %s', phutil_console_format('**arc diff --force**')),
+      pht('This will prompt you for an exemption reason.')
+    );
+    
+    throw new ArcanistUserAbortException();
+  }
+
+  /**
+   * Prompt user for exemption reason when using --force to create Phabricator diff.
+   * Only prompts users in the GitHub beta group.
+   * Shows GitHub invitation banner first as a "last chance" invitation.
+   */
+  private function promptForForceExemptionReason() {
+    // Skip prompting in non-interactive scenarios
+    if (!$this->isTTY()) {
+      return;
+    }
+
+    // Only prompt GitHub beta group users for exemption reason
+    $gbu = new UberGitHubBetaUsersPrompt();
+    if (!$gbu->isCurrentUserInGitHubBetaUsersPromptGroup()) {
+      return;
+    }
+
+    // Show GitHub invitation banner first as a "last chance" invitation
+    $this->displayGitHubInvitationBannerOnly();
+
+    $reason_prompt = pht(
+      'You are forcing a Phabricator diff instead of using GitHub PR. Please explain why:'
+    );
+    
+    $reason = phutil_console_prompt($reason_prompt);
+    if (empty(trim($reason))) {
+      $this->console->writeErr(
+        "%s\n",
+        pht('An exemption reason is required when using --force.')
+      );
+      throw new ArcanistUserAbortException();
+    }
+    
+    // Track the exemption reason
+    $this->trackForceExemptionReason(trim($reason));
+    
+    $this->console->writeOut(
+      "%s: %s\n\n", 
+      pht('Exemption reason recorded'),
+      trim($reason)
+    );
+  }
+
+  /**
+   * Display just the GitHub invitation banner without any prompts.
+   * Used for --force users as a "last chance" invitation.
+   */
+  private function displayGitHubInvitationBannerOnly() {
+    // Check if repository is disabled for GitHub prompts
     if ($this->isRepositoryDisabledForGitHubPrompt()) {
       return;
     }
     
+    $this->outputGitHubInvitationBanner();
+  }
+
+  /**
+   * Output the GitHub invitation banner content.
+   */
+  private function outputGitHubInvitationBanner() {
     $docs_link = "\033]8;;https://p.uber.com/arh\033\\p.uber.com/arh\033]8;;\033\\";
     $slack_link = "\033]8;;https://uber.enterprise.slack.com/archives/C05H81RFE4F\033\\#github-pr-beta\033]8;;\033\\";
 
     $banner = <<<EOBANNER
 **************************************
 *                                    *
-*  You're invited to try GitHub!     *
+*  Please consider using GitHub!     *
 *                                    *
 *  Switch to GitHub for enhanced     *
 *  collaboration and workflow.       *
@@ -756,66 +874,19 @@ EOTEXT
 *                                    *
 *  Slack channel: $slack_link    *
 *                                    *
-*  Start using Github PRs today!     *
+*  Start using GitHub PRs today!     *
 *                                    *
 **************************************
 
 EOBANNER;
 
     $this->console->writeOut("<fg:green>%s</fg>", $banner);
-    
-    // Only show the prompt for new revisions (not when updating existing ones)
-    // We need to check multiple conditions to determine the actual intent
-    if ($this->shouldPromptForArh()) {
-      // Prompt user to consider using arh CLI tool instead
-      $prompt = pht(
-        'Would you like to create a GitHub PR instead?'
-      );
-      
-      if (phutil_console_confirm($prompt, $default_no = false)) {
-        $this->console->writeOut(
-          "%s\n%s\n%s\n%s\n\n%s\n",
-          pht('Great! You can create a GitHub PR using the arh CLI tool:'),
-          pht('  1. Ensure you are authenticated: %s', phutil_console_format('**arh auth**')),
-          pht('  2. Make your changes and commit them.'),
-          pht('  3. Publish your PR: %s', phutil_console_format('**arh publish**')),
-          pht('Documentation: %s', phutil_console_format('__%s__', 'https://p.uber.com/arh'))
-        );
-        throw new ArcanistUserAbortException();
-      }
-      
-      // Additional prompt for users who chose to continue with Phabricator
-      $reason_prompt = pht(
-        'Please explain why you are choosing to use a Phabricator diff instead of a GitHub PR:'
-      );
-      
-      $reason = phutil_console_prompt($reason_prompt);
-      if (empty(trim($reason))) {
-        $this->console->writeErr(
-          "%s\n",
-          pht('A reason is required to continue with Phabricator diff creation.')
-        );
-        throw new ArcanistUserAbortException();
-      }
-      
-      // Track the reason using aw CLI for analytics
-      $this->trackGitHubBetaPromptReason(trim($reason));
-      
-      $this->console->writeOut(
-        "%s\n%s: %s\n\n", 
-        pht('Continuing with Phabricator diff creation...'),
-        pht('Reason provided'),
-        trim($reason)
-      );
-    }
   }
 
-
   /**
-   * Track the user's reason for choosing Phabricator over GitHub using aw CLI
-   * for local developer analytics.
+   * Track exemption reason when user forces Phabricator diff creation.
    */
-  private function trackGitHubBetaPromptReason($reason) {
+  private function trackForceExemptionReason($reason) {
     try {
       $repo_name = $this->getRepositoryName();
       // Handle case where repository name is not available
@@ -823,21 +894,21 @@ EOBANNER;
         $repo_name = 'unknown';
       }
       
-      // Execute aw CLI command with minimal required fields
-      // aw auto-populates system fields like hostname, user, timestamps, etc.
+      // Execute aw CLI command with exemption reason
       exec_manual(
         'aw -t %s %s -t %s %s -t %s %s -t %s %s -t %s %s',
         'tool.name', 'arc-prompt',
-        'tool.action', 'github-beta-prompt-reason',
-        'tool.arguments', 'diff',
+        'tool.action', 'force-exemption-reason',
+        'tool.arguments', 'diff --force',
         'tool.repo_name', $repo_name,
-        'tool.value_map.user_reason', $reason
+        'tool.value_map.exemption_reason', $reason
       );
       
     } catch (Exception $ex) {
       // Silently fail - don't disrupt the user workflow if analytics fails
     }
   }
+
 
   /**
    * Check if the current repository is disabled for GitHub banner and prompt.
