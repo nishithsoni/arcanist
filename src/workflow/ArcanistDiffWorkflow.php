@@ -865,16 +865,13 @@ EOTEXT
     $banner = <<<EOBANNER
 **************************************
 *                                    *
-*  Please consider using GitHub!     *
-*                                    *
-*  Switch to GitHub for enhanced     *
-*  collaboration and workflow.       *
+*  Uber is moving to GitHub for      *
+*  enhanced collaboration and        *
+*  workflow!                         *
 *                                    *
 *  Get started at $docs_link     *
 *                                    *
 *  Slack channel: $slack_link    *
-*                                    *
-*  Start using GitHub PRs today!     *
 *                                    *
 **************************************
 
@@ -944,53 +941,6 @@ EOBANNER;
     return false;
   }
 
-  /**
-   * Determine if we should prompt the user to use arh CLI tool.
-   * Prompt for new revision creation including --create, --nointeractive, etc.
-   * but not updates or truly non-interactive scenarios.
-   */
-  private function shouldPromptForArh() {
-    // Collect gating flags/conditions up front for clarity
-    $isUpdate          = (bool)$this->getArgument('update');
-    $isTTY             = $this->isTTY();
-    $isJson            = (bool)$this->getArgument('json');
-    $isNoDiff          = (bool)$this->getArgument('no-diff');
-    $onlyCreateDiff    = (bool)$this->shouldOnlyCreateDiff();
-    $useCommitMessage  = (bool)$this->getArgument('use-commit-message');
-
-    // Single guard: skip prompting when any disqualifying condition is true
-    if (
-      !$isTTY ||
-      $isJson ||
-      $isNoDiff ||
-      $isUpdate ||
-      $onlyCreateDiff ||
-      $useCommitMessage
-    ) {
-      return false;
-    }
-
-    // At this point, we need to check if Arcanist will auto-detect this
-    // as a new revision vs updating an existing one. We need to replicate
-    // the logic from buildCommitMessage() but without side effects.
-
-    try {
-      $repository_api = $this->getRepositoryAPI();
-      $revisions = $repository_api->loadWorkingCopyDifferentialRevisions(
-        $this->getConduit(),
-        array(
-          'authors' => array($this->getUserPHID()),
-          'status'  => 'status-open',
-        ));
-
-      // Prompt only if no existing open revisions
-      return empty($revisions);
-
-    } catch (Exception $ex) {
-      // If we can't determine safely, don't prompt
-      return false;
-    }
-  }
 
   private function runRepositoryAPISetup() {
     if (!$this->requiresRepositoryAPI()) {
