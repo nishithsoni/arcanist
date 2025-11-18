@@ -79,6 +79,14 @@ final class UberSubmitQueueClient extends Phobject {
         $core_future->addHeader('Authorization', "Bearer {$token}");
 
         $core_future->setMethod($method);
+
+        // For POST requests, explicitly set Content-Length header (even if 0)
+        // This is required by GCP frontend to avoid 411 errors
+        // Setting this AFTER setMethod() ensures it's not overridden
+        if (strtoupper($method) === 'POST') {
+          $core_future->addHeader('Content-Length', '0');
+        }
+        
         $core_future->setTimeout($this->timeout);
 
         $json_future = new UberSubmitQueueFuture($core_future);
